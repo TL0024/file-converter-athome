@@ -7,7 +7,7 @@
     "lint": "eslint static/app.js"
   },
   "devDependencies": {
-    "@eslint/js": "^9.31.0",
+    "@eslint/js": "^10.0.1",
     "eslint": "^9.31.0",
     "globals": "^17.7.0"
   },
