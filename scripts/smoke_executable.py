@@ -42,8 +42,8 @@ def main() -> int:
     port = reserve_port()
     base_url = f"http://127.0.0.1:{port}"
     environment = os.environ.copy()
-    environment["LOCALCONVERT_NO_BROWSER"] = "1"
-    environment["LOCALCONVERT_PORT"] = str(port)
+    environment["FILECONVERTERATHOME_NO_BROWSER"] = "1"
+    environment["FILECONVERTERATHOME_PORT"] = str(port)
     process = subprocess.Popen(
         [str(executable)],
         env=environment,
@@ -54,7 +54,7 @@ def main() -> int:
     )
     try:
         page = wait_for_page(base_url)
-        match = re.search(rb'name="localconvert-session" content="([^"]+)"', page)
+        match = re.search(rb'name="fileconverterathome-session" content="([^"]+)"', page)
         if match is None:
             raise RuntimeError("The app page did not contain a browser session token.")
         token = match.group(1).decode("ascii")

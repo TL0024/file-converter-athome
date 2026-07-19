@@ -1,15 +1,15 @@
-# File Converter At Home
+# FileconverterAthome
 
-File Converter At Home (the app calls itself **LocalConvert**) is a private, batch-capable file converter for Windows. It opens a browser interface, but conversion happens entirely in a Python service bound to `127.0.0.1`. Files are never sent to a cloud API.
+FileconverterAthome is a private, batch-capable file converter for Windows. It opens a browser interface, but conversion happens entirely in a Python service bound to `127.0.0.1`. Files are never sent to a cloud API.
 
-[Download the latest Windows executable](https://github.com/TL0024/file-converter-athome/releases/latest/download/FileConverterAtHome.exe)
+[Download the latest Windows executable](https://github.com/TL0024/file-converter-athome/releases/latest/download/FileconverterAthome.exe)
 
 ## Use the Windows app
 
-1. Download `FileConverterAtHome.exe` from the latest GitHub release.
-2. Run the executable. A command window opens, followed by LocalConvert in your default browser.
+1. Download `FileconverterAthome.exe` from the latest GitHub release.
+2. Run the executable. A command window opens, followed by FileconverterAthome in your default browser.
 3. Add files, choose outputs, convert, and download the results.
-4. Close the LocalConvert browser page when finished. The local service and its command window close automatically. If several LocalConvert tabs are open, the service stays alive until the last one closes.
+4. Close the FileconverterAthome browser page when finished. The local service and its command window close automatically. If several FileconverterAthome tabs are open, the service stays alive until the last one closes.
 
 The executable is not code-signed, so Windows SmartScreen may ask you to confirm that you trust it. Release assets include a SHA-256 checksum for independent verification.
 

@@ -2,7 +2,7 @@
 
 ## Runtime model
 
-LocalConvert is a desktop-style application built from a loopback-only web service and a browser UI.
+FileconverterAthome is a desktop-style application built from a loopback-only web service and a browser UI.
 
 ```text
 Browser page
@@ -24,7 +24,7 @@ Flask routes in app.py
 
 Each render of `/` creates an unguessable browser session token and embeds it in a page-only metadata element. JavaScript sends a heartbeat every five seconds and sends a `pagehide` beacon when the page closes or navigates away.
 
-The server tracks every open LocalConvert page independently. When the last page closes, it waits 1.5 seconds before stopping; this prevents an ordinary page reload from killing the replacement page. If a browser is terminated so abruptly that no beacon is delivered, the heartbeat expires after 120 seconds. The manager then invokes Werkzeug's graceful shutdown callback, removes temporary jobs, and lets the process and command window exit normally.
+The server tracks every open FileconverterAthome page independently. When the last page closes, it waits 1.5 seconds before stopping; this prevents an ordinary page reload from killing the replacement page. If a browser is terminated so abruptly that no beacon is delivered, the heartbeat expires after 120 seconds. The manager then invokes Werkzeug's graceful shutdown callback, removes temporary jobs, and lets the process and command window exit normally.
 
 The close and heartbeat endpoints require the per-page token. A different web origin cannot read that token because the browser's same-origin policy protects the page response.
 
@@ -40,7 +40,7 @@ The global job map is protected by a lock because the local WSGI server handles 
 
 ## Packaging
 
-`FileConverterAtHome.spec` creates a one-file Windows console executable. It embeds:
+`FileconverterAthome.spec` creates the one-file `FileconverterAthome.exe` Windows console executable. It embeds:
 
 - the Flask templates and static assets;
 - the `imageio-ffmpeg` Windows binary;

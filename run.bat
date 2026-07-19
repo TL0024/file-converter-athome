@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 python -c "import flask, PIL, fitz, docx, imageio_ffmpeg" >nul 2>&1
 if errorlevel 1 (
-  echo Installing FileConverter dependencies...
+  echo Installing FileconverterAthome dependencies...
   python -m pip install -r requirements.txt
   if errorlevel 1 (
     echo.
@@ -13,4 +13,3 @@ if errorlevel 1 (
   )
 )
 python app.py
-

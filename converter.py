@@ -263,7 +263,7 @@ class ConversionManager:
     def _convert_still_image_to_media(self, source: Path, output: Path, target: str) -> None:
         # Normalizing through PNG makes FFmpeg looping consistent for formats
         # such as ICO whose native demuxer does not accept the image2 loop option.
-        with tempfile.TemporaryDirectory(prefix="localconvert-frame-") as directory:
+        with tempfile.TemporaryDirectory(prefix="fileconverterathome-frame-") as directory:
             normalized = Path(directory) / "frame.png"
             with Image.open(source) as image:
                 rgba = image.convert("RGBA")
@@ -669,7 +669,7 @@ class ConversionManager:
     def _convert_with_libreoffice(self, source: Path, output: Path, target: str) -> str | None:
         if not self.libreoffice:
             raise ConversionError("LibreOffice is required for this Office format.")
-        with tempfile.TemporaryDirectory(prefix="localconvert-office-") as output_dir:
+        with tempfile.TemporaryDirectory(prefix="fileconverterathome-office-") as output_dir:
             command = [
                 self.libreoffice,
                 "--headless",

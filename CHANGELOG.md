@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 - 2026-07-20
+
+- Renamed the application and its browser interface to FileconverterAthome.
+- Renamed the Windows executable, build artifact, PyInstaller specification, icon asset, batch archive, and product metadata.
+- Renamed application-specific environment variables and internal browser-session identifiers.
+- Updated user, architecture, development, packaging, and release documentation for the new product identity.
+
 ## 1.0.0 - 2026-07-19
 
 - Added the first packaged Windows release with a branded icon and version metadata.

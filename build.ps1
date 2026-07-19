@@ -12,10 +12,10 @@ if (-not $SkipInstall) {
   if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed." }
 }
 
-& $PythonExecutable -m PyInstaller --clean --noconfirm FileConverterAtHome.spec
+& $PythonExecutable -m PyInstaller --clean --noconfirm FileconverterAthome.spec
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed." }
 
-$executable = Join-Path $projectRoot "dist\FileConverterAtHome.exe"
+$executable = Join-Path $projectRoot "dist\FileconverterAthome.exe"
 if (-not (Test-Path -LiteralPath $executable)) {
   throw "The expected executable was not created."
 }

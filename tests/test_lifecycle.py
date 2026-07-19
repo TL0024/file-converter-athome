@@ -40,7 +40,9 @@ def test_browser_session_routes_accept_heartbeat_and_close():
     with app.test_client() as client:
         page = client.get("/")
         assert page.status_code == 200
-        match = re.search(rb'name="localconvert-session" content="([^"]+)"', page.data)
+        assert b"FileconverterAthome" in page.data
+        assert b"LocalConvert" not in page.data
+        match = re.search(rb'name="fileconverterathome-session" content="([^"]+)"', page.data)
         assert match is not None
         token = match.group(1).decode("ascii")
 

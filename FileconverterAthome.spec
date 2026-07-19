@@ -40,7 +40,7 @@ executable = EXE(
     analysis.binaries,
     analysis.datas,
     [],
-    name="FileConverterAtHome",
+    name="FileconverterAthome",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -51,6 +51,6 @@ executable = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon="assets/file-converter-athome.ico",
+    icon="assets/FileconverterAthome.ico",
     version="packaging/windows-version-info.txt",
 )
