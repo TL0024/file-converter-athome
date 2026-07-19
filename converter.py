@@ -15,6 +15,8 @@ import imageio_ffmpeg
 from docx import Document
 from PIL import Image, ImageSequence, UnidentifiedImageError
 
+CREATE_NO_WINDOW = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
 
 class ConversionError(Exception):
     """A safe, user-facing conversion error."""
@@ -617,7 +619,7 @@ class ConversionManager:
         if still_image:
             command += ["-t", "3"]
         command.append(str(output))
-        creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        creation_flags = CREATE_NO_WINDOW
         try:
             completed = subprocess.run(
                 command,
@@ -677,7 +679,7 @@ class ConversionManager:
                 output_dir,
                 str(source),
             ]
-            creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+            creation_flags = CREATE_NO_WINDOW
             completed = subprocess.run(
                 command, capture_output=True, text=True, timeout=600, creationflags=creation_flags
             )

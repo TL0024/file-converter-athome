@@ -12,6 +12,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+CREATE_NO_WINDOW = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
 
 def reserve_port() -> int:
     with socket.socket() as listener:
@@ -42,14 +44,13 @@ def main() -> int:
     environment = os.environ.copy()
     environment["LOCALCONVERT_NO_BROWSER"] = "1"
     environment["LOCALCONVERT_PORT"] = str(port)
-    creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     process = subprocess.Popen(
         [str(executable)],
         env=environment,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        creationflags=creation_flags,
+        creationflags=CREATE_NO_WINDOW,
     )
     try:
         page = wait_for_page(base_url)

@@ -34,7 +34,7 @@ The `Quality` workflow separates concerns so branch protection can identify the 
 | ESLint | Browser JavaScript correctness |
 | CodeQL | Extended security and quality queries for Python and JavaScript |
 | zizmor | GitHub Actions supply-chain and workflow security |
-| Dependency review | Moderate-or-higher risk introduced by a pull request |
+| Dependency review | GitHub dependency review where available; pip/npm advisory audits for private repositories without GitHub Advanced Security |
 
 Tests run on Python 3.11, 3.12, and 3.13. The Windows job also builds the one-file executable and runs `scripts/smoke_executable.py`, which verifies startup, page rendering, the close endpoint, and a clean process exit.
 
