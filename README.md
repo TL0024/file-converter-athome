@@ -1,23 +1,28 @@
-# LocalConvert
+# File Converter At Home
 
-LocalConvert is a private, batch-capable file converter that runs on your own computer. The browser sends files only to the Python service at `127.0.0.1`; it does not use a cloud API.
+File Converter At Home (the app calls itself **LocalConvert**) is a private, batch-capable file converter for Windows. It opens a browser interface, but conversion happens entirely in a Python service bound to `127.0.0.1`. Files are never sent to a cloud API.
 
-## Start it
+[Download the latest Windows executable](https://github.com/TL0024/file-converter-athome/releases/latest/download/FileConverterAtHome.exe)
 
-On Windows, double-click `run.bat`. It installs the small Python dependency set when needed, starts the private local service, and opens your browser at:
+## Use the Windows app
 
-```text
-http://127.0.0.1:5174
-```
+1. Download `FileConverterAtHome.exe` from the latest GitHub release.
+2. Run the executable. A command window opens, followed by LocalConvert in your default browser.
+3. Add files, choose outputs, convert, and download the results.
+4. Close the LocalConvert browser page when finished. The local service and its command window close automatically. If several LocalConvert tabs are open, the service stays alive until the last one closes.
 
-You can also start it from PowerShell:
+The executable is not code-signed, so Windows SmartScreen may ask you to confirm that you trust it. Release assets include a SHA-256 checksum for independent verification.
+
+## Run from source
+
+Python 3.11 or newer is required.
 
 ```powershell
 python -m pip install -r requirements.txt
 python app.py
 ```
 
-Then open `http://127.0.0.1:5174` in a browser.
+Alternatively, double-click `run.bat`; it installs missing runtime dependencies and starts the app. Both methods open `http://127.0.0.1:5174`.
 
 ## Conversion coverage
 
@@ -27,34 +32,51 @@ Then open `http://127.0.0.1:5174` in a browser.
 | Documents | Word (`.docx`) | PDF, text, HTML |
 | Documents | TXT, Markdown, HTML, RTF | PDF, Word, text |
 | Images | PNG, JPG, WebP, BMP, TIFF, ICO | PNG, JPG, WebP, GIF, BMP, TIFF, ICO, PDF, MP4, WebM |
-| Animation | GIF | GIF, animated WebP, PNG, JPG, BMP, TIFF, ICO, PDF, MP4, WebM |
+| Animation | GIF | GIF, animated WebP, images, PDF, MP4, WebM |
 | Animation | Telegram TGS / Lottie JSON | JSON / TGS |
-| Video | MP4, WebM, MOV, MKV, AVI, M4V, MPEG, 3GP | all listed video containers, GIF, PNG, JPG, WebP, or extracted audio |
+| Video | MP4, WebM, MOV, MKV, AVI, M4V, MPEG, 3GP | video containers, GIF, images, or extracted audio |
 | Audio | MP3, WAV, OGG, FLAC, M4A, AAC, WMA, Opus | all listed audio formats |
 
-Installing LibreOffice adds legacy `.doc`, `.odt`, `.xls`, `.xlsx`, `.ppt`, and `.pptx` input automatically. The app detects it at startup.
+FFmpeg is supplied by `imageio-ffmpeg` and is bundled into the Windows executable. Installing LibreOffice adds legacy `.doc`, `.odt`, `.xls`, `.xlsx`, `.ppt`, and `.pptx` input automatically.
 
 ## Batch and filename behavior
 
-- Add up to 50 files in one batch, including mixed file types.
-- Use **Change all outputs** to update every compatible file at once; incompatible files keep their existing selection.
-- Choose a separate compatible output format for every file.
-- The original base name is kept; only the extension changes (for example, `Holiday Clip.mp4` becomes `Holiday Clip.webm`).
-- If a batch contains duplicate base names targeting the same extension, later files receive ` (2)`, ` (3)`, and so on to prevent data loss.
-- Download files individually or download all successful results as one ZIP.
-- For batches, **Save separate files** chooses one destination folder in supported browsers; other browsers start the downloads one by one and may ask for each location.
-- Temporary working files expire after two hours and can also be removed immediately with **New batch**.
+- Add up to 50 files in one mixed batch.
+- Choose one compatible output per file or use **Change all outputs**.
+- Keep the original base name; only the extension changes.
+- Duplicate target names receive ` (2)`, ` (3)`, and so on instead of overwriting data.
+- Download results individually, save separate files to a selected folder in supported browsers, or download a ZIP.
+- Temporary working files expire after two hours and are removed when a batch is cleared or the app exits.
 
-Static images exported to MP4 or WebM use a three-second duration. Animated WebP and GIF retain their animation when exported to video. PNG, JPG, and WebP exports from video use the first frame.
+Static images exported to MP4 or WebM use a three-second duration. Animated WebP and GIF retain their animation when exported to video. Image exports from video use the first frame.
 
-## Notes on document fidelity
+## Document fidelity
 
-PDF-to-Word and Word-to-PDF are built-in, content-focused conversions. Text, headings, page breaks, and simple tables are retained, but complex columns, forms, floating images, and exact typography can shift. Legacy Microsoft Office formats use LibreOffice when it is installed.
+Built-in PDF and Word conversion is content-focused. Text, headings, page breaks, and simple tables are retained, but complex columns, forms, floating images, and exact typography can shift. Legacy Microsoft Office formats use LibreOffice when it is installed.
 
-TGS conversion preserves the Telegram animation as editable Lottie JSON. Visual TGS rendering is intentionally not claimed because it requires a separate Lottie renderer.
+TGS conversion preserves the Telegram animation as editable Lottie JSON. It does not render the animation visually because that requires a separate Lottie renderer.
 
-## Tests
+## Development and verification
+
+Install the development tools and run the same checks used in CI:
 
 ```powershell
-python -m pytest -q
+python -m pip install -r requirements-dev.txt
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy app.py converter.py lifecycle.py scripts
+python -m bandit -q -c pyproject.toml -r app.py converter.py lifecycle.py scripts
+python -m vulture
+python -m pip_audit -r requirements.txt --progress-spinner=off
+python -m pytest --cov --cov-report=term-missing
+npm ci
+npm run lint
 ```
+
+Build and smoke-test the Windows executable with:
+
+```powershell
+.\build.ps1
+```
+
+More detail is available in [Architecture](docs/ARCHITECTURE.md), [Development](docs/DEVELOPMENT.md), [Security](SECURITY.md), and the [Changelog](CHANGELOG.md).

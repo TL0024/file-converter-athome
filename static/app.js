@@ -6,6 +6,30 @@ const state = {
   successfulResults: [],
 };
 
+const browserSession = document.querySelector('meta[name="localconvert-session"]')?.content;
+let browserSessionClosed = false;
+
+function heartbeatBrowserSession() {
+  if (!browserSession || browserSessionClosed) return;
+  fetch(`/api/browser/${encodeURIComponent(browserSession)}/heartbeat`, {
+    method: "POST",
+    cache: "no-store",
+  }).catch(() => { /* The server may already be stopping. */ });
+}
+
+function closeBrowserSession() {
+  if (!browserSession || browserSessionClosed) return;
+  browserSessionClosed = true;
+  const url = `/api/browser/${encodeURIComponent(browserSession)}/closed`;
+  if (!navigator.sendBeacon(url, new Blob([], { type: "text/plain" }))) {
+    fetch(url, { method: "POST", keepalive: true }).catch(() => {});
+  }
+}
+
+heartbeatBrowserSession();
+window.setInterval(heartbeatBrowserSession, 5000);
+window.addEventListener("pagehide", closeBrowserSession);
+
 const els = {
   input: document.querySelector("#file-input"),
   dropZone: document.querySelector("#drop-zone"),

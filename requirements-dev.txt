@@ -1,0 +1,10 @@
+-r requirements.txt
+
+bandit[toml]>=1.8,<2
+mypy>=1.16,<2
+pip-audit>=2.9,<3
+pyinstaller>=6.14,<7
+pytest>=8.4,<10
+pytest-cov>=6.2,<8
+ruff>=0.12,<1
+vulture>=2.14,<3

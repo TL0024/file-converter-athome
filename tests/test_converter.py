@@ -172,7 +172,10 @@ def test_mixed_batch_api_keeps_base_names(tmp_path: Path):
         response = client.post(
             "/api/convert",
             data={
-                "files": [(image_data, "Cover Art.png"), (io.BytesIO(b"hello locally"), "Notes.txt")],
+                "files": [
+                    (image_data, "Cover Art.png"),
+                    (io.BytesIO(b"hello locally"), "Notes.txt"),
+                ],
                 "targets": ["webp", "pdf"],
             },
             content_type="multipart/form-data",
@@ -180,7 +183,10 @@ def test_mixed_batch_api_keeps_base_names(tmp_path: Path):
         assert response.status_code == 200
         payload = response.get_json()
         assert payload["success_count"] == 2
-        assert [item["output_name"] for item in payload["results"]] == ["Cover Art.webp", "Notes.pdf"]
+        assert [item["output_name"] for item in payload["results"]] == [
+            "Cover Art.webp",
+            "Notes.pdf",
+        ]
         assert payload["download_all_url"]
 
         archive = client.get(payload["download_all_url"])
