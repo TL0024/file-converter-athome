@@ -15,6 +15,8 @@ import imageio_ffmpeg
 from docx import Document
 from PIL import Image, ImageSequence, UnidentifiedImageError
 
+CREATE_NO_WINDOW = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
 
 class ConversionError(Exception):
     """A safe, user-facing conversion error."""
@@ -66,9 +68,26 @@ IMAGE_INPUTS = {"png", "jpg", "webp", "bmp", "tiff", "ico"}
 IMAGE_OUTPUTS = ["png", "jpg", "webp", "gif", "bmp", "tiff", "ico", "pdf"]
 VIDEO_INPUTS = {"mp4", "webm", "mov", "mkv", "avi", "m4v", "mpeg", "3gp"}
 VIDEO_OUTPUTS = [
-    "mp4", "webm", "mov", "mkv", "avi", "m4v", "mpeg", "3gp",
-    "gif", "png", "jpg", "webp",
-    "mp3", "wav", "ogg", "flac", "m4a", "aac", "opus", "wma",
+    "mp4",
+    "webm",
+    "mov",
+    "mkv",
+    "avi",
+    "m4v",
+    "mpeg",
+    "3gp",
+    "gif",
+    "png",
+    "jpg",
+    "webp",
+    "mp3",
+    "wav",
+    "ogg",
+    "flac",
+    "m4a",
+    "aac",
+    "opus",
+    "wma",
 ]
 AUDIO_INPUTS = {"mp3", "wav", "ogg", "flac", "m4a", "aac", "wma", "opus"}
 AUDIO_OUTPUTS = ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus", "wma"]
@@ -120,8 +139,8 @@ class ConversionManager:
                 return found
         if os.name == "nt":
             for candidate in (
-                Path(os.environ.get("ProgramFiles", "")) / "LibreOffice/program/soffice.exe",
-                Path(os.environ.get("ProgramFiles(x86)", "")) / "LibreOffice/program/soffice.exe",
+                Path(os.environ.get("PROGRAMFILES", "")) / "LibreOffice/program/soffice.exe",
+                Path(os.environ.get("PROGRAMFILES(X86)", "")) / "LibreOffice/program/soffice.exe",
             ):
                 if candidate.exists():
                     return str(candidate)
@@ -212,7 +231,11 @@ class ConversionManager:
                 return self._convert_image(source, output, target)
             if source_format in VIDEO_INPUTS:
                 self._convert_media(source, output, target)
-                return "The first video frame was exported." if target in {"png", "jpg", "webp"} else None
+                return (
+                    "The first video frame was exported."
+                    if target in {"png", "jpg", "webp"}
+                    else None
+                )
             if source_format in AUDIO_INPUTS:
                 self._convert_media(source, output, target)
                 return None
@@ -227,7 +250,9 @@ class ConversionManager:
         except ConversionError:
             raise
         except (OSError, ValueError, UnidentifiedImageError, fitz.FileDataError) as exc:
-            raise ConversionError("The file is damaged or its contents do not match its extension.") from exc
+            raise ConversionError(
+                "The file is damaged or its contents do not match its extension."
+            ) from exc
         raise ConversionError("No converter is available for this format pair.")
 
     @staticmethod
@@ -257,7 +282,9 @@ class ConversionManager:
 
         with Image.open(source) as image:
             frames = [frame.copy() for frame in ImageSequence.Iterator(image)]
-            durations = [frame.info.get("duration", image.info.get("duration", 100)) for frame in frames]
+            durations = [
+                frame.info.get("duration", image.info.get("duration", 100)) for frame in frames
+            ]
             loop = image.info.get("loop", 0)
             animated = len(frames) > 1
 
@@ -302,7 +329,11 @@ class ConversionManager:
                 icon_canvas = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
                 offset = ((256 - icon_source.width) // 2, (256 - icon_source.height) // 2)
                 icon_canvas.paste(icon_source, offset, icon_source)
-                icon_canvas.save(output, "ICO", sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+                icon_canvas.save(
+                    output,
+                    "ICO",
+                    sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+                )
             elif target == "gif":
                 frame.convert("P").save(output, "GIF", optimize=True)
             else:
@@ -331,13 +362,15 @@ class ConversionManager:
                             document.add_paragraph(block_text)
                     if page_number < len(pdf) - 1:
                         document.add_page_break()
-                document.save(output)
-                return "Text is preserved; complex PDF layout, forms, and columns may shift in Word."
+                document.save(str(output))
+                return (
+                    "Text is preserved; complex PDF layout, forms, and columns may shift in Word."
+                )
         raise ConversionError(f"PDF conversion to {target.upper()} is unavailable.")
 
     @staticmethod
     def _docx_html(source: Path) -> str:
-        document = Document(source)
+        document = Document(str(source))
         chunks: list[str] = []
         for paragraph in document.paragraphs:
             text = html.escape(paragraph.text)
@@ -362,13 +395,13 @@ class ConversionManager:
         body = self._docx_html(source)
         if target == "html":
             output.write_text(
-                "<!doctype html><html><head><meta charset=\"utf-8\"><title>Converted document</title></head>"
+                '<!doctype html><html><head><meta charset="utf-8"><title>Converted document</title></head>'
                 f"<body>{body}</body></html>",
                 encoding="utf-8",
             )
             return "Text, headings, and tables are preserved; advanced Word layout may shift."
         if target == "txt":
-            document = Document(source)
+            document = Document(str(source))
             parts = [paragraph.text for paragraph in document.paragraphs]
             for table in document.tables:
                 parts.extend("\t".join(cell.text for cell in row.cells) for row in table.rows)
@@ -376,10 +409,14 @@ class ConversionManager:
             return None
         if target == "pdf":
             self._write_pdf_from_html(body, output)
-            return "Text, headings, and tables are preserved; advanced Word layout may shift in PDF."
+            return (
+                "Text, headings, and tables are preserved; advanced Word layout may shift in PDF."
+            )
         raise ConversionError(f"Word conversion to {target.upper()} is unavailable.")
 
-    def _convert_text_document(self, source: Path, source_format: str, output: Path, target: str) -> str | None:
+    def _convert_text_document(
+        self, source: Path, source_format: str, output: Path, target: str
+    ) -> str | None:
         raw = self._read_text(source)
         if source_format == "html":
             body = self._sanitize_html(raw)
@@ -400,7 +437,7 @@ class ConversionManager:
             document = Document()
             for line in plain.splitlines():
                 document.add_paragraph(line)
-            document.save(output)
+            document.save(str(output))
         elif target == "pdf":
             self._write_pdf_from_html(body, output)
         else:
@@ -470,7 +507,9 @@ class ConversionManager:
             writer.end_page()
         writer.close()
 
-    def _convert_media(self, source: Path, output: Path, target: str, mute: bool = False, still_image: bool = False) -> None:
+    def _convert_media(
+        self, source: Path, output: Path, target: str, mute: bool = False, still_image: bool = False
+    ) -> None:
         if not self.ffmpeg:
             raise ConversionError("FFmpeg is not available in this local setup.")
         command = [self.ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
@@ -478,14 +517,36 @@ class ConversionManager:
             command += ["-loop", "1", "-framerate", "30"]
         command += ["-i", str(source)]
         if target == "mp4":
-            command += ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "22", "-pix_fmt", "yuv420p"]
+            command += [
+                "-vf",
+                "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "22",
+                "-pix_fmt",
+                "yuv420p",
+            ]
             command += ["-an"] if mute else ["-c:a", "aac", "-b:a", "192k"]
             command += ["-movflags", "+faststart"]
         elif target == "webm":
             command += ["-c:v", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-pix_fmt", "yuv420p"]
             command += ["-an"] if mute else ["-c:a", "libopus", "-b:a", "128k"]
         elif target == "mov":
-            command += ["-c:v", "libx264", "-crf", "22", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"]
+            command += [
+                "-c:v",
+                "libx264",
+                "-crf",
+                "22",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+            ]
         elif target == "mkv":
             command += ["-c:v", "libx264", "-crf", "22", "-c:a", "aac", "-b:a", "192k"]
         elif target == "avi":
@@ -493,11 +554,46 @@ class ConversionManager:
         elif target == "m4v":
             command += ["-c:v", "mpeg4", "-q:v", "4", "-an", "-f", "m4v"]
         elif target == "mpeg":
-            command += ["-c:v", "mpeg2video", "-q:v", "4", "-c:a", "mp2", "-b:a", "192k", "-f", "mpeg"]
+            command += [
+                "-c:v",
+                "mpeg2video",
+                "-q:v",
+                "4",
+                "-c:a",
+                "mp2",
+                "-b:a",
+                "192k",
+                "-f",
+                "mpeg",
+            ]
         elif target == "3gp":
-            command += ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "44100", "-ac", "2", "-f", "3gp"]
+            command += [
+                "-vf",
+                "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                "-c:v",
+                "libx264",
+                "-profile:v",
+                "baseline",
+                "-level",
+                "3.0",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-ar",
+                "44100",
+                "-ac",
+                "2",
+                "-f",
+                "3gp",
+            ]
         elif target == "gif":
-            command += ["-vf", "fps=15,scale=960:-2:force_original_aspect_ratio=decrease:flags=lanczos", "-loop", "0"]
+            command += [
+                "-vf",
+                "fps=15,scale=960:-2:force_original_aspect_ratio=decrease:flags=lanczos",
+                "-loop",
+                "0",
+            ]
         elif target == "png":
             command += ["-frames:v", "1", "-c:v", "png"]
         elif target == "jpg":
@@ -523,7 +619,7 @@ class ConversionManager:
         if still_image:
             command += ["-t", "3"]
         command.append(str(output))
-        creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        creation_flags = CREATE_NO_WINDOW
         try:
             completed = subprocess.run(
                 command,
@@ -558,9 +654,11 @@ class ConversionManager:
             raise ConversionError("This is not valid Lottie JSON.") from exc
         ConversionManager._validate_lottie(data)
         compact = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        with output.open("wb") as file_handle:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=file_handle, mtime=0) as compressed:
-                compressed.write(compact)
+        with (
+            output.open("wb") as file_handle,
+            gzip.GzipFile(filename="", mode="wb", fileobj=file_handle, mtime=0) as compressed,
+        ):
+            compressed.write(compact)
 
     @staticmethod
     def _validate_lottie(data: object) -> None:
@@ -581,8 +679,10 @@ class ConversionManager:
                 output_dir,
                 str(source),
             ]
-            creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-            completed = subprocess.run(command, capture_output=True, text=True, timeout=600, creationflags=creation_flags)
+            creation_flags = CREATE_NO_WINDOW
+            completed = subprocess.run(
+                command, capture_output=True, text=True, timeout=600, creationflags=creation_flags
+            )
             candidates = list(Path(output_dir).glob(f"*.{target}"))
             if completed.returncode != 0 or not candidates:
                 raise ConversionError("LibreOffice could not convert this document.")

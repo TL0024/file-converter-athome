@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import atexit
+import os
 import shutil
+import sys
 import tempfile
 import time
 import uuid
@@ -8,19 +11,28 @@ import webbrowser
 import zipfile
 from pathlib import Path
 from threading import Lock, Timer
+from typing import Any
 
 from flask import Flask, abort, jsonify, render_template, request, send_file
-from werkzeug.exceptions import RequestEntityTooLarge
+from flask.typing import ResponseReturnValue
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
+from werkzeug.serving import make_server
 
 from converter import ConversionError, ConversionManager, output_filename
+from lifecycle import BrowserSessionManager
 
-
-app = Flask(__name__)
+APP_DIRECTORY = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+app = Flask(
+    __name__,
+    static_folder=str(APP_DIRECTORY / "static"),
+    template_folder=str(APP_DIRECTORY / "templates"),
+)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2 GiB per batch
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 converter = ConversionManager()
-JOBS: dict[str, dict] = {}
+BROWSER_SESSIONS = BrowserSessionManager()
+JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = Lock()
 MAX_FILES = 50
 JOB_TTL_SECONDS = 2 * 60 * 60
@@ -37,23 +49,52 @@ def cleanup_expired_jobs() -> None:
         shutil.rmtree(job["directory"], ignore_errors=True)
 
 
+def cleanup_all_jobs() -> None:
+    """Remove all temporary conversion data during a normal process exit."""
+    with JOBS_LOCK:
+        jobs = list(JOBS.values())
+        JOBS.clear()
+    for job in jobs:
+        shutil.rmtree(job["directory"], ignore_errors=True)
+
+
+atexit.register(cleanup_all_jobs)
+
+
 @app.before_request
 def maintain_job_store() -> None:
     cleanup_expired_jobs()
 
 
 @app.get("/")
-def index():
-    return render_template("index.html")
+def index() -> str:
+    return render_template(
+        "index.html",
+        browser_session_token=BROWSER_SESSIONS.register(),
+    )
+
+
+@app.post("/api/browser/<session_token>/heartbeat")
+def browser_heartbeat(session_token: str) -> ResponseReturnValue:
+    if not BROWSER_SESSIONS.heartbeat(session_token):
+        abort(404, description="This browser session is no longer active.")
+    return ("", 204)
+
+
+@app.post("/api/browser/<session_token>/closed")
+def browser_closed(session_token: str) -> ResponseReturnValue:
+    if not BROWSER_SESSIONS.close(session_token):
+        abort(404, description="This browser session is no longer active.")
+    return ("", 204)
 
 
 @app.get("/api/capabilities")
-def capabilities():
+def capabilities() -> ResponseReturnValue:
     return jsonify(converter.capabilities())
 
 
 @app.post("/api/convert")
-def convert_files():
+def convert_files() -> ResponseReturnValue:
     uploads = request.files.getlist("files")
     targets = request.form.getlist("targets")
 
@@ -66,13 +107,13 @@ def convert_files():
 
     job_id = uuid.uuid4().hex
     job_dir = Path(tempfile.mkdtemp(prefix=f"localconvert-{job_id[:8]}-"))
-    results: list[dict] = []
-    successful_files: list[dict] = []
+    results: list[dict[str, Any]] = []
+    successful_files: list[dict[str, Any]] = []
     used_names: set[str] = set()
 
-    for upload, target in zip(uploads, targets):
+    for upload, target in zip(uploads, targets, strict=True):
         original_name = upload.filename or "untitled"
-        result = {"input_name": original_name}
+        result: dict[str, Any] = {"input_name": original_name}
         try:
             source_format = converter.detect_format(original_name)
             target = target.lower().strip().lstrip(".")
@@ -142,7 +183,7 @@ def convert_files():
     )
 
 
-def get_job(job_id: str) -> dict:
+def get_job(job_id: str) -> dict[str, Any]:
     with JOBS_LOCK:
         job = JOBS.get(job_id)
     if not job:
@@ -151,7 +192,7 @@ def get_job(job_id: str) -> dict:
 
 
 @app.get("/api/jobs/<job_id>/files/<file_id>")
-def download_file(job_id: str, file_id: str):
+def download_file(job_id: str, file_id: str) -> ResponseReturnValue:
     job = get_job(job_id)
     record = next((item for item in job["files"] if item["id"] == file_id), None)
     if not record:
@@ -160,7 +201,7 @@ def download_file(job_id: str, file_id: str):
 
 
 @app.get("/api/jobs/<job_id>/download-all")
-def download_all(job_id: str):
+def download_all(job_id: str) -> ResponseReturnValue:
     job = get_job(job_id)
     zip_path = job.get("zip_path")
     if not zip_path or not Path(zip_path).exists():
@@ -173,7 +214,7 @@ def download_all(job_id: str):
 
 
 @app.delete("/api/jobs/<job_id>")
-def delete_job(job_id: str):
+def delete_job(job_id: str) -> ResponseReturnValue:
     with JOBS_LOCK:
         job = JOBS.pop(job_id, None)
     if job:
@@ -182,18 +223,28 @@ def delete_job(job_id: str):
 
 
 @app.errorhandler(RequestEntityTooLarge)
-def batch_too_large(_error):
+def batch_too_large(_error: RequestEntityTooLarge) -> ResponseReturnValue:
     return jsonify({"error": "This batch is larger than the 2 GB local limit."}), 413
 
 
 @app.errorhandler(404)
-def not_found(error):
+def not_found(error: HTTPException) -> ResponseReturnValue:
     if request.path.startswith("/api/"):
-        return jsonify({"error": getattr(error, "description", "Not found.")}), 404
-    return error
+        return jsonify({"error": error.description}), 404
+    return error.get_response()
 
 
 if __name__ == "__main__":
-    print("\n  LocalConvert is ready: http://127.0.0.1:5174\n")
-    Timer(1.0, lambda: webbrowser.open("http://127.0.0.1:5174")).start()
-    app.run(host="127.0.0.1", port=5174, debug=False, threaded=True)
+    port = int(os.environ.get("LOCALCONVERT_PORT", "5174"))
+    local_url = f"http://127.0.0.1:{port}"
+    print(f"\n  LocalConvert is ready: {local_url}\n")
+    server = make_server("127.0.0.1", port, app, threaded=True)
+    BROWSER_SESSIONS.start(server.shutdown)
+    if os.environ.get("LOCALCONVERT_NO_BROWSER") != "1":
+        Timer(1.0, lambda: webbrowser.open(local_url)).start()
+    try:
+        server.serve_forever()
+    finally:
+        BROWSER_SESSIONS.stop()
+        server.server_close()
+        cleanup_all_jobs()
