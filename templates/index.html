@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Convert documents, images, audio, video, GIF and TGS files privately on your own computer.">
+  <title>LocalConvert — private file conversion</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="LocalConvert home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M9.5 6.5h9l5 5v14h-14z"/><path d="M18.5 6.5v5h5"/><path d="m13 18 3 3 5-6"/></svg>
+      </span>
+      <span>LocalConvert</span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#formats">Formats</a>
+      <a href="#how-it-works">How it works</a>
+      <span class="local-badge"><i></i> 100% local</span>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="eyebrow"><span>✦</span> Your files stay on this computer</div>
+      <h1 id="hero-title">One drop.<br><em>Any format.</em></h1>
+      <p class="hero-copy">Documents, images, audio, video and animations—converted together in one clean, private batch.</p>
+      <div class="format-marquee" aria-label="Popular supported formats">
+        <span>PDF</span><b>↔</b><span>WORD</span><i></i><span>MP4</span><b>↔</b><span>WEBM</span><i></i><span>PNG</span><b>↔</b><span>WEBP</span><i></i><span>MP3</span><b>↔</b><span>WAV</span><i></i><span>TGS</span>
+      </div>
+    </section>
+
+    <section class="converter-shell" aria-labelledby="converter-title">
+      <div class="converter-heading">
+        <div>
+          <span class="step-label">01 / ADD FILES</span>
+          <h2 id="converter-title">What are we converting?</h2>
+        </div>
+        <button class="text-button" id="clear-button" type="button" hidden>Clear all</button>
+      </div>
+
+      <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Choose files or drop them here">
+        <input id="file-input" type="file" multiple hidden>
+        <div class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><path d="M24 31V12m0 0-7 7m7-7 7 7"/><path d="M12 27v8a4 4 0 0 0 4 4h16a4 4 0 0 0 4-4v-8"/></svg>
+        </div>
+        <div class="drop-copy">
+          <strong>Drop your files here</strong>
+          <span>or <u>browse your computer</u> · up to 50 files per batch</span>
+        </div>
+        <button class="browse-button" type="button" tabindex="-1">Choose files</button>
+      </div>
+
+      <div class="bulk-controls" id="bulk-controls" hidden>
+        <div class="bulk-copy">
+          <span class="bulk-icon" aria-hidden="true">⇄</span>
+          <div><strong>Change all outputs</strong><small id="bulk-hint">Individual choices remain available below.</small></div>
+        </div>
+        <label for="bulk-target">Convert compatible files to</label>
+        <select class="bulk-target" id="bulk-target">
+          <option value="">Choose a format…</option>
+        </select>
+      </div>
+
+      <div class="queue" id="queue" aria-live="polite"></div>
+
+      <div class="batch-actions" id="batch-actions" hidden>
+        <div class="batch-total">
+          <span id="file-total">0 files</span>
+          <small id="size-total">0 B total</small>
+        </div>
+        <button class="convert-button" id="convert-button" type="button">
+          <span id="convert-label">Convert files</span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg>
+        </button>
+      </div>
+
+      <div class="progress-panel" id="progress-panel" hidden aria-live="polite">
+        <div class="progress-copy"><span id="progress-label">Preparing batch…</span><strong id="progress-percent">0%</strong></div>
+        <div class="progress-track"><i id="progress-bar"></i></div>
+        <small>Please keep this page open while your computer converts the files.</small>
+      </div>
+    </section>
+
+    <section class="results-panel" id="results-panel" hidden aria-labelledby="results-title">
+      <div class="results-heading">
+        <div>
+          <span class="step-label">02 / READY</span>
+          <h2 id="results-title">Your converted files</h2>
+        </div>
+        <button class="secondary-button" id="new-batch-button" type="button">New batch</button>
+      </div>
+      <div class="result-list" id="result-list"></div>
+      <div class="download-options" id="download-options" hidden>
+        <a class="download-all" id="download-all" href="#">
+          <span class="zip-icon">ZIP</span>
+          <span><strong>Download as one ZIP</strong><small>One download containing every successful file</small></span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0 4-4m-4 4L6 9M4 16h12"/></svg>
+        </a>
+        <button class="download-separate" id="download-separate" type="button">
+          <span class="files-icon">FILES</span>
+          <span><strong id="download-separate-label">Save separate files</strong><small>Choose one folder, or download each file one by one</small></span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0 4-4m-4 4L6 9M4 16h12"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <section class="privacy-strip" aria-label="Privacy information">
+      <div class="privacy-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M7 14h18v13H7z"/><path d="M11 14V9a5 5 0 0 1 10 0v5"/><path d="M16 19v3"/></svg>
+      </div>
+      <div><strong>No uploads. No accounts. No trail.</strong><p>Conversion happens through a server running only on <code>127.0.0.1</code>. Temporary files automatically expire after two hours.</p></div>
+      <span class="privacy-stamp">PRIVATE<br>BY DESIGN</span>
+    </section>
+
+    <section class="formats-section" id="formats" aria-labelledby="formats-title">
+      <div class="section-heading">
+        <div><span class="step-label">FORMAT LIBRARY</span><h2 id="formats-title">Made for mixed batches.</h2></div>
+        <p>Add a PDF, a video and five images together. Each file gets its own compatible output menu.</p>
+      </div>
+      <div class="category-tabs" id="category-tabs" role="tablist" aria-label="Format categories">
+        <button class="active" data-category="all" role="tab" aria-selected="true">All</button>
+      </div>
+      <div class="format-cloud" id="format-cloud" aria-live="polite"></div>
+      <p class="engine-note" id="engine-note"></p>
+    </section>
+
+    <section class="how-section" id="how-it-works" aria-labelledby="how-title">
+      <span class="step-label">HOW IT WORKS</span>
+      <h2 id="how-title">Three steps. That’s it.</h2>
+      <div class="how-grid">
+        <article><b>01</b><h3>Add everything</h3><p>Browse or drag in up to 50 files, even when they use different formats.</p></article>
+        <article><b>02</b><h3>Pick each output</h3><p>Choose a compatible format beside every file. The original base name stays unchanged.</p></article>
+        <article><b>03</b><h3>Download once</h3><p>Save files one by one or collect the whole successful batch in a ZIP.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <a class="brand footer-brand" href="#top"><span class="brand-mark" aria-hidden="true">↺</span><span>LocalConvert</span></a>
+    <p>Private file conversion, built to stay on your machine.</p>
+    <span id="footer-engine">Checking local engines…</span>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
