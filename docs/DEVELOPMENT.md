@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Python 3.11 or newer
-- Node.js 22 or newer for ESLint
+- Node.js 22.13 or newer for ESLint
 - Windows when building the `.exe`
 - Optional LibreOffice for legacy Office conversions
 
@@ -34,7 +34,7 @@ The `Quality` workflow separates concerns so branch protection can identify the 
 | ESLint | Browser JavaScript correctness |
 | CodeQL | Extended security and quality queries for Python and JavaScript |
 | zizmor | GitHub Actions supply-chain and workflow security |
-| Dependency review | GitHub dependency review where available; pip/npm advisory audits for private repositories without GitHub Advanced Security |
+| Dependency review | Pull-request pip and npm advisory audits without requiring GitHub Advanced Security |
 
 Tests run on Python 3.11, 3.12, and 3.13. The Windows job also builds the one-file executable and runs `scripts/smoke_executable.py`, which verifies startup, page rendering, the close endpoint, and a clean process exit.
 

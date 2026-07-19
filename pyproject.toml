@@ -39,7 +39,7 @@ ignore = ["E501", "RUF005"]
 "tests/**/*.py" = ["S101"]
 
 [tool.ruff.format]
-line-ending = "lf"
+line-ending = "auto"
 quote-style = "double"
 
 [tool.mypy]
