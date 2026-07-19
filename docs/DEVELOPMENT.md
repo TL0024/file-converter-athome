@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Python 3.11 or newer
-- Node.js 22 or newer for ESLint
+- Node.js 22.13 or newer for ESLint
 - Windows when building the `.exe`
 - Optional LibreOffice for legacy Office conversions
 
