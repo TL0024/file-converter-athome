@@ -1,8 +1,8 @@
 {
-  "name": "file-converter-athome",
-  "version": "1.0.0",
+  "name": "fileconverter-athome",
+  "version": "1.1.0",
   "private": true,
-  "description": "Frontend static-analysis tooling for LocalConvert",
+  "description": "Frontend static-analysis tooling for FileconverterAthome",
   "scripts": {
     "lint": "eslint static/app.js"
   },

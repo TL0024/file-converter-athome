@@ -106,7 +106,7 @@ def convert_files() -> ResponseReturnValue:
         return jsonify({"error": "Every file needs an output format."}), 400
 
     job_id = uuid.uuid4().hex
-    job_dir = Path(tempfile.mkdtemp(prefix=f"localconvert-{job_id[:8]}-"))
+    job_dir = Path(tempfile.mkdtemp(prefix=f"fileconverterathome-{job_id[:8]}-"))
     results: list[dict[str, Any]] = []
     successful_files: list[dict[str, Any]] = []
     used_names: set[str] = set()
@@ -205,12 +205,12 @@ def download_all(job_id: str) -> ResponseReturnValue:
     job = get_job(job_id)
     zip_path = job.get("zip_path")
     if not zip_path or not Path(zip_path).exists():
-        zip_path = Path(job["directory"]) / "LocalConvert-batch.zip"
+        zip_path = Path(job["directory"]) / "FileconverterAthome-batch.zip"
         with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_STORED) as archive:
             for record in job["files"]:
                 archive.write(record["path"], arcname=record["download_name"])
         job["zip_path"] = zip_path
-    return send_file(zip_path, as_attachment=True, download_name="LocalConvert-batch.zip")
+    return send_file(zip_path, as_attachment=True, download_name="FileconverterAthome-batch.zip")
 
 
 @app.delete("/api/jobs/<job_id>")
@@ -235,12 +235,12 @@ def not_found(error: HTTPException) -> ResponseReturnValue:
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("LOCALCONVERT_PORT", "5174"))
+    port = int(os.environ.get("FILECONVERTERATHOME_PORT", "5174"))
     local_url = f"http://127.0.0.1:{port}"
-    print(f"\n  LocalConvert is ready: {local_url}\n")
+    print(f"\n  FileconverterAthome is ready: {local_url}\n")
     server = make_server("127.0.0.1", port, app, threaded=True)
     BROWSER_SESSIONS.start(server.shutdown)
-    if os.environ.get("LOCALCONVERT_NO_BROWSER") != "1":
+    if os.environ.get("FILECONVERTERATHOME_NO_BROWSER") != "1":
         Timer(1.0, lambda: webbrowser.open(local_url)).start()
     try:
         server.serve_forever()

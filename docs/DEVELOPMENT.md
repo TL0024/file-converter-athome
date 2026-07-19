@@ -16,7 +16,7 @@ python -m pip install -r requirements-dev.txt
 npm ci
 ```
 
-Run `python app.py` for a normal browser-opening session. Automation can set `LOCALCONVERT_NO_BROWSER=1` and select an unused port with `LOCALCONVERT_PORT`.
+Run `python app.py` for a normal browser-opening session. Automation can set `FILECONVERTERATHOME_NO_BROWSER=1` and select an unused port with `FILECONVERTERATHOME_PORT`.
 
 ## Test and analysis suite
 
@@ -44,7 +44,7 @@ Tests run on Python 3.11, 3.12, and 3.13. The Windows job also builds the one-fi
 .\build.ps1
 ```
 
-The script installs declared development requirements, builds `dist/FileConverterAtHome.exe`, runs the executable smoke test, and prints its SHA-256 digest. Use `-SkipInstall` in a prepared environment.
+The script installs declared development requirements, builds `dist/FileconverterAthome.exe`, runs the executable smoke test, and prints its SHA-256 digest. Use `-SkipInstall` in a prepared environment.
 
 For a clean build on a machine with a large global Python environment, create an isolated environment and select it explicitly:
 

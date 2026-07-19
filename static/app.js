@@ -6,7 +6,7 @@ const state = {
   successfulResults: [],
 };
 
-const browserSession = document.querySelector('meta[name="localconvert-session"]')?.content;
+const browserSession = document.querySelector('meta[name="fileconverterathome-session"]')?.content;
 let browserSessionClosed = false;
 
 function heartbeatBrowserSession() {
@@ -397,7 +397,7 @@ async function saveSeparateFiles() {
   const originalLabel = "Save separate files";
   try {
     if ("showDirectoryPicker" in window) {
-      const directory = await window.showDirectoryPicker({ id: "localconvert-output", mode: "readwrite" });
+      const directory = await window.showDirectoryPicker({ id: "fileconverterathome-output", mode: "readwrite" });
       let completed = 0;
       for (const result of state.successfulResults) {
         els.downloadSeparateLabel.textContent = `Saving ${completed + 1} of ${state.successfulResults.length}…`;
