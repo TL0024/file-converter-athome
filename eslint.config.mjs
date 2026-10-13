@@ -7,6 +7,10 @@ export default [
   },
   eslint.configs.recommended,
   {
+    files: ["tests/**/*.cjs"],
+    languageOptions: { globals: globals.node },
+  },
+  {
     files: ["static/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",

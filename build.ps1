@@ -24,5 +24,7 @@ if (-not (Test-Path -LiteralPath $executable)) {
 if ($LASTEXITCODE -ne 0) { throw "The executable smoke test failed." }
 
 $hash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
+$checksum = "$($hash.Hash.ToLowerInvariant())  FileconverterAthome.exe"
+Set-Content -LiteralPath "$executable.sha256" -Value $checksum -Encoding ascii
 Write-Output "Built $executable"
 Write-Output "SHA256 $($hash.Hash.ToLowerInvariant())"

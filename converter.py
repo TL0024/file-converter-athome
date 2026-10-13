@@ -10,12 +10,15 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import fitz
 import imageio_ffmpeg
+import pymupdf as fitz
 from docx import Document
-from PIL import Image, ImageSequence, UnidentifiedImageError
+from docx.document import Document as WordDocument
+from docx.text.paragraph import Paragraph
+from PIL import Image, ImageOps, ImageSequence, UnidentifiedImageError
 
 CREATE_NO_WINDOW = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+MAX_LOTTIE_BYTES = 32 * 1024 * 1024
 
 
 class ConversionError(Exception):
@@ -105,6 +108,11 @@ def _clean_basename(filename: str) -> str:
 def output_filename(original_name: str, target: str, used_names: set[str]) -> str:
     clean_name = _clean_basename(original_name)
     stem = Path(clean_name).stem.strip(" .") or "untitled"
+    stem = stem.encode("utf-16-le")[:360].decode("utf-16-le", errors="ignore")
+    reserved = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
+    reserved.update(f"{prefix}{number}" for prefix in ("COM", "LPT") for number in range(1, 10))
+    if stem.split(".", 1)[0].upper() in reserved:
+        stem = f"_{stem}"
     candidate = f"{stem}.{target}"
     counter = 2
     while candidate.casefold() in used_names:
@@ -190,7 +198,12 @@ class ConversionManager:
         return {
             "categories": categories,
             "formats": formats,
-            "accept": [f".{extension}" for extension in sorted(formats)],
+            "accept": [
+                f".{extension}"
+                for extension in sorted(
+                    set(formats) | {a for a, f in ALIASES.items() if f in formats}
+                )
+            ],
             "engines": {
                 "ffmpeg": bool(self.ffmpeg),
                 "libreoffice": bool(self.libreoffice),
@@ -266,7 +279,7 @@ class ConversionManager:
         with tempfile.TemporaryDirectory(prefix="fileconverterathome-frame-") as directory:
             normalized = Path(directory) / "frame.png"
             with Image.open(source) as image:
-                rgba = image.convert("RGBA")
+                rgba = ImageOps.exif_transpose(image).convert("RGBA")
                 background = Image.new("RGB", rgba.size, "white")
                 background.paste(rgba, mask=rgba.getchannel("A"))
                 background.save(normalized, "PNG")
@@ -276,21 +289,22 @@ class ConversionManager:
     def _convert_image(source: Path, output: Path, target: str) -> str | None:
         if target == "pdf":
             with Image.open(source) as image:
-                frame = image.convert("RGB")
+                frame = ImageOps.exif_transpose(image).convert("RGB")
                 frame.save(output, "PDF", resolution=150)
-            return "Animated images use their first frame when exported to PDF."
+                animated = getattr(image, "n_frames", 1) > 1
+            return (
+                "Animated images use their first frame when exported to PDF." if animated else None
+            )
 
         with Image.open(source) as image:
-            frames = [frame.copy() for frame in ImageSequence.Iterator(image)]
-            durations = [
-                frame.info.get("duration", image.info.get("duration", 100)) for frame in frames
-            ]
+            animated = getattr(image, "n_frames", 1) > 1
             loop = image.info.get("loop", 0)
-            animated = len(frames) > 1
 
             if target in {"gif", "webp"} and animated:
                 converted = []
-                for frame in frames:
+                durations = []
+                for frame in ImageSequence.Iterator(image):
+                    durations.append(frame.info.get("duration", 100))
                     converted.append(frame.convert("RGBA" if target == "webp" else "P"))
                 save_args = {
                     "save_all": True,
@@ -305,7 +319,7 @@ class ConversionManager:
                 converted[0].save(output, target.upper(), **save_args)
                 return None
 
-            frame = frames[0]
+            frame = ImageOps.exif_transpose(image)
             if target == "jpg":
                 if frame.mode in {"RGBA", "LA", "P"}:
                     rgba = frame.convert("RGBA")
@@ -350,6 +364,10 @@ class ConversionManager:
                 return "The PDF was cleaned and optimized locally."
             if target == "txt":
                 text = "\n\n".join(page.get_text("text").rstrip() for page in pdf)
+                if not text.strip():
+                    raise ConversionError(
+                        "This PDF has no extractable text. Scanned pages need OCR first."
+                    )
                 output.write_text(text, encoding="utf-8")
                 return "Scanned pages need OCR before their text can be extracted."
             if target == "docx":
@@ -369,10 +387,16 @@ class ConversionManager:
         raise ConversionError(f"PDF conversion to {target.upper()} is unavailable.")
 
     @staticmethod
-    def _docx_html(source: Path) -> str:
-        document = Document(str(source))
+    def _docx_html(document: WordDocument) -> str:
         chunks: list[str] = []
-        for paragraph in document.paragraphs:
+        for paragraph in document.iter_inner_content():
+            if not isinstance(paragraph, Paragraph):
+                rows = []
+                for row in paragraph.rows:
+                    cells = "".join(f"<td>{html.escape(cell.text)}</td>" for cell in row.cells)
+                    rows.append(f"<tr>{cells}</tr>")
+                chunks.append(f"<table>{''.join(rows)}</table>")
+                continue
             text = html.escape(paragraph.text)
             style = (paragraph.style.name if paragraph.style else "").lower()
             if style.startswith("heading"):
@@ -383,16 +407,20 @@ class ConversionManager:
                 chunks.append(f"<p>{text}</p>")
             else:
                 chunks.append("<p><br></p>")
-        for table in document.tables:
-            rows = []
-            for row in table.rows:
-                cells = "".join(f"<td>{html.escape(cell.text)}</td>" for cell in row.cells)
-                rows.append(f"<tr>{cells}</tr>")
-            chunks.append(f"<table>{''.join(rows)}</table>")
         return "\n".join(chunks)
 
     def _convert_docx(self, source: Path, output: Path, target: str) -> str | None:
-        body = self._docx_html(source)
+        document = Document(str(source))
+        if target == "txt":
+            parts = []
+            for block in document.iter_inner_content():
+                if isinstance(block, Paragraph):
+                    parts.append(block.text)
+                else:
+                    parts.extend("\t".join(cell.text for cell in row.cells) for row in block.rows)
+            output.write_text("\n".join(parts), encoding="utf-8")
+            return None
+        body = self._docx_html(document)
         if target == "html":
             output.write_text(
                 '<!doctype html><html><head><meta charset="utf-8"><title>Converted document</title></head>'
@@ -400,13 +428,6 @@ class ConversionManager:
                 encoding="utf-8",
             )
             return "Text, headings, and tables are preserved; advanced Word layout may shift."
-        if target == "txt":
-            document = Document(str(source))
-            parts = [paragraph.text for paragraph in document.paragraphs]
-            for table in document.tables:
-                parts.extend("\t".join(cell.text for cell in row.cells) for row in table.rows)
-            output.write_text("\n".join(parts), encoding="utf-8")
-            return None
         if target == "pdf":
             self._write_pdf_from_html(body, output)
             return (
@@ -447,7 +468,14 @@ class ConversionManager:
     @staticmethod
     def _read_text(source: Path) -> str:
         data = source.read_bytes()
-        for encoding in ("utf-8-sig", "utf-16", "cp1252"):
+        encodings: tuple[str, ...]
+        if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+            encodings = ("utf-16",)
+        elif b"\x00" in data[:100]:
+            encodings = ("utf-16-be",) if data.startswith(b"\x00") else ("utf-16-le",)
+        else:
+            encodings = ("utf-8-sig", "cp1252")
+        for encoding in encodings:
             try:
                 return data.decode(encoding)
             except UnicodeDecodeError:
@@ -496,23 +524,22 @@ class ConversionManager:
             td, th { border: 0.6pt solid #aeb8b1; padding: 5pt; }
         """
         story = fitz.Story(html=f"<body>{body}</body>", user_css=css)
-        writer = fitz.DocumentWriter(str(output))
         page_rect = fitz.paper_rect("a4")
         content_rect = page_rect + (54, 54, -54, -54)
-        more = 1
-        while more:
-            device = writer.begin_page(page_rect)
-            more, _filled = story.place(content_rect)
-            story.draw(device)
-            writer.end_page()
-        writer.close()
+        with fitz.DocumentWriter(str(output)) as writer:
+            more = 1
+            while more:
+                device = writer.begin_page(page_rect)
+                more, _filled = story.place(content_rect)
+                story.draw(device)
+                writer.end_page()
 
     def _convert_media(
         self, source: Path, output: Path, target: str, mute: bool = False, still_image: bool = False
     ) -> None:
         if not self.ffmpeg:
             raise ConversionError("FFmpeg is not available in this local setup.")
-        command = [self.ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
+        command = [self.ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y"]
         if still_image:
             command += ["-loop", "1", "-framerate", "30"]
         command += ["-i", str(source)]
@@ -625,6 +652,8 @@ class ConversionManager:
                 command,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=60 * 60,
                 creationflags=creation_flags,
                 check=False,
@@ -639,9 +668,12 @@ class ConversionManager:
     @staticmethod
     def _tgs_to_json(source: Path, output: Path) -> None:
         try:
-            with gzip.open(source, "rt", encoding="utf-8") as compressed:
-                data = json.load(compressed)
-        except (gzip.BadGzipFile, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            with gzip.open(source, "rb") as compressed:
+                raw = compressed.read(MAX_LOTTIE_BYTES + 1)
+            if len(raw) > MAX_LOTTIE_BYTES:
+                raise ConversionError("The expanded animation exceeds the 32 MB safety limit.")
+            data = json.loads(raw)
+        except (EOFError, gzip.BadGzipFile, json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise ConversionError("This is not a valid Telegram TGS animation.") from exc
         ConversionManager._validate_lottie(data)
         output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -649,7 +681,11 @@ class ConversionManager:
     @staticmethod
     def _json_to_tgs(source: Path, output: Path) -> None:
         try:
-            data = json.loads(source.read_text(encoding="utf-8-sig"))
+            with source.open("rb") as input_handle:
+                raw = input_handle.read(MAX_LOTTIE_BYTES + 1)
+            if len(raw) > MAX_LOTTIE_BYTES:
+                raise ConversionError("The Lottie JSON exceeds the 32 MB safety limit.")
+            data = json.loads(raw)
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise ConversionError("This is not valid Lottie JSON.") from exc
         ConversionManager._validate_lottie(data)
@@ -670,8 +706,10 @@ class ConversionManager:
         if not self.libreoffice:
             raise ConversionError("LibreOffice is required for this Office format.")
         with tempfile.TemporaryDirectory(prefix="fileconverterathome-office-") as output_dir:
+            profile = (Path(output_dir) / "profile").as_uri()
             command = [
                 self.libreoffice,
+                f"-env:UserInstallation={profile}",
                 "--headless",
                 "--convert-to",
                 target,
@@ -680,9 +718,20 @@ class ConversionManager:
                 str(source),
             ]
             creation_flags = CREATE_NO_WINDOW
-            completed = subprocess.run(
-                command, capture_output=True, text=True, timeout=600, creationflags=creation_flags
-            )
+            try:
+                completed = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=600,
+                    creationflags=creation_flags,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise ConversionError(
+                    "Office conversion exceeded the ten-minute safety limit."
+                ) from exc
             candidates = list(Path(output_dir).glob(f"*.{target}"))
             if completed.returncode != 0 or not candidates:
                 raise ConversionError("LibreOffice could not convert this document.")

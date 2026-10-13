@@ -32,6 +32,20 @@ class BrowserSessionManager:
         self._empty_since: float | None = None
         self._has_connected = False
         self._shutdown_requested = False
+        self._active_operations = 0
+
+    def begin_activity(self) -> None:
+        """Keep the service alive while converting or streaming a download."""
+        with self._lock:
+            self._active_operations += 1
+
+    def end_activity(self) -> None:
+        """Allow shutdown after the last active operation finishes."""
+        with self._lock:
+            self._active_operations -= 1
+            if not self._sessions:
+                self._empty_since = self._clock()
+        self._wake_event.set()
 
     def register(self) -> str:
         """Register a newly loaded browser page and return its unguessable token."""
@@ -106,6 +120,7 @@ class BrowserSessionManager:
             ready = (
                 self._has_connected
                 and not self._sessions
+                and not self._active_operations
                 and self._empty_since is not None
                 and now - self._empty_since >= self._shutdown_grace
             )

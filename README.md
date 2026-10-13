@@ -42,11 +42,15 @@ FFmpeg is supplied by `imageio-ffmpeg` and is bundled into the Windows executabl
 ## Batch and filename behavior
 
 - Add up to 50 files in one mixed batch.
+- Empty files and batches over the local size limit are caught before upload. Progress shows the current file and completed count.
 - Choose one compatible output per file or use **Change all outputs**.
 - Keep the original base name; only the extension changes.
 - Duplicate target names receive ` (2)`, ` (3)`, and so on instead of overwriting data.
 - Download results individually, save separate files to a selected folder in supported browsers, or download a ZIP.
+- Folder saves stream files and add numbered suffixes when a name already exists in that folder.
 - Temporary working files expire after two hours and are removed when a batch is cleared or the app exits.
+
+Batch controls stay locked while converting or saving. One batch converts at a time across all tabs; other tabs can still download finished results. Active conversions and downloads finish before the service shuts down or removes their files.
 
 Static images exported to MP4 or WebM use a three-second duration. Animated WebP and GIF retain their animation when exported to video. Image exports from video use the first frame.
 
@@ -71,6 +75,7 @@ python -m pip_audit -r requirements.txt --progress-spinner=off
 python -m pytest --cov --cov-report=term-missing
 npm ci
 npm run lint
+npm test
 ```
 
 Build and smoke-test the Windows executable with:

@@ -14,6 +14,8 @@ Use the repository's **Security** tab to submit a private vulnerability report. 
 - Conversion files remain in operating-system temporary storage and are deleted after two hours, when a batch is cleared, or when the app exits.
 - User filenames are sanitized and never used as working paths.
 - Browser lifecycle endpoints use unguessable, page-scoped tokens.
+- Loopback host validation blocks DNS rebinding, browser-origin checks protect API mutations, and session/API responses disable caching.
+- Lottie JSON and expanded TGS animations have a 32 MB limit; conversion work is serialized and running downloads retain their temporary files until closed.
 - External converters are invoked with argument arrays and without a command shell.
 - The bundled FFmpeg binary comes from the declared `imageio-ffmpeg` package.
 - CI audits Python dependencies, pull-request dependency changes, source with CodeQL and Bandit, JavaScript with ESLint, and workflow definitions with zizmor.

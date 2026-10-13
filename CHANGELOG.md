@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 - 2026-10-14
+
+- Added live per-file batch progress and result recovery when the upload response is interrupted.
+- Locked batch controls during conversion and folder saves; empty files and oversized batches are rejected before upload.
+- Serialized conversion batches to protect the document engine and return a clear busy response to other tabs.
+- Protected in-flight downloads from cleanup and shutdown; concurrent ZIP requests share one atomically created archive.
+- Removed source and failed output files promptly, reducing temporary disk usage.
+- Preserved photo EXIF orientation, avoided decoding unused animation frames, and retained Word table order.
+- Fixed Windows reserved and long filenames, common text encodings, Office timeouts and profile isolation, and scanned PDF error messages.
+- Streamed folder saves and avoided overwriting existing filenames.
+- Added local host and origin validation, bounded Lottie expansion, and disabled stale API and session caching.
+- Consolidated pending Python, npm, and workflow updates, patched the vulnerable npm dependency, and kept CodeQL init and analyze versions aligned.
+- Expanded Python, frontend, and packaged executable regression checks.
+
 ## 1.1.0 - 2026-07-20
 
 - Renamed the application and its browser interface to FileconverterAthome.

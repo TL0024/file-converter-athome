@@ -1,15 +1,16 @@
 {
   "name": "fileconverter-athome",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Frontend static-analysis tooling for FileconverterAthome",
   "scripts": {
-    "lint": "eslint static/app.js"
+    "lint": "eslint static/app.js tests/frontend.test.cjs",
+    "test": "node --test tests/frontend.test.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.7.0",
-    "globals": "^17.7.0"
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
   },
   "engines": {
     "node": ">=22.13"

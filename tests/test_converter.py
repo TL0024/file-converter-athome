@@ -6,7 +6,7 @@ import json
 import wave
 from pathlib import Path
 
-import fitz
+import pymupdf as fitz
 import pytest
 from docx import Document
 from PIL import Image
@@ -192,4 +192,5 @@ def test_mixed_batch_api_keeps_base_names(tmp_path: Path):
         archive = client.get(payload["download_all_url"])
         assert archive.status_code == 200
         assert archive.data.startswith(b"PK")
+        archive.close()
         client.delete(f"/api/jobs/{payload['job_id']}")

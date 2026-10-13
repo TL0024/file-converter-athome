@@ -38,6 +38,12 @@ An upload creates a uniquely named directory under the operating system's tempor
 
 The global job map is protected by a lock because the local WSGI server handles requests in multiple threads.
 
+Conversion requests use a non-blocking global lock so only one batch enters the document engine at a time. A second tab receives HTTP 429 with `Retry-After`. The browser sends an unguessable `X-Conversion-ID` and polls `GET /api/jobs/<id>` for completed counts and the current filename while its upload request is running. A completed status response can recover results if the original request loses its connection.
+
+Source files and failed outputs are removed after each file. Running jobs never expire. Downloads acquire a reference before opening their file; deleting a batch hides it immediately, then removes its directory after the final response stream closes. A per-job lock and temporary archive followed by an atomic rename prevent concurrent ZIP requests from seeing partial archives. Browser shutdown waits for active conversion and download operations.
+
+Host validation accepts loopback hostnames only. API mutations reject mismatched browser origins, and page and API responses disable caching to avoid stale session tokens or results.
+
 ## Packaging
 
 `FileconverterAthome.spec` creates the one-file `FileconverterAthome.exe` Windows console executable. It embeds:
