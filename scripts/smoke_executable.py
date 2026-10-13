@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import json
 import os
 import re
 import socket
@@ -10,6 +12,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
+import wave
+import zipfile
 from pathlib import Path
 
 CREATE_NO_WINDOW = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -30,6 +35,54 @@ def wait_for_page(url: str, timeout: float = 45.0) -> bytes:
         except (OSError, urllib.error.URLError):
             time.sleep(0.25)
     raise RuntimeError(f"The executable did not start within {timeout:.0f} seconds.")
+
+
+def check_conversions(base_url: str) -> None:
+    """Exercise bundled document and FFmpeg engines plus both download routes."""
+    audio_data = io.BytesIO()
+    with wave.open(audio_data, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(8000)
+        audio.writeframes(b"\x00\x00" * 4000)
+    boundary = uuid.uuid4().hex
+    body = bytearray()
+    for filename, content, target in (
+        ("notes.txt", b"Packaged conversion works", "pdf"),
+        ("tone.wav", audio_data.getvalue(), "mp3"),
+    ):
+        body.extend(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="files"; '
+            f'filename="{filename}"\r\nContent-Type: application/octet-stream\r\n\r\n'.encode()
+        )
+        body.extend(content)
+        body.extend(
+            f'\r\n--{boundary}\r\nContent-Disposition: form-data; name="targets"\r\n\r\n'
+            f"{target}\r\n".encode()
+        )
+    body.extend(f"--{boundary}--\r\n".encode())
+    conversion_request = urllib.request.Request(
+        f"{base_url}/api/convert",
+        data=bytes(body),
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(conversion_request, timeout=60) as response:  # nosec B310
+        payload = json.load(response)
+    if payload["success_count"] != 2:
+        raise RuntimeError(f"Packaged conversion failed: {payload['results']}")
+    with urllib.request.urlopen(f"{base_url}{payload['download_all_url']}", timeout=15) as response:  # nosec B310
+        archive_data = response.read()
+    with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
+        if archive.testzip() is not None or archive.namelist() != ["notes.pdf", "tone.mp3"]:
+            raise RuntimeError("Packaged batch archive was invalid.")
+        if not archive.read("notes.pdf").startswith(b"%PDF"):
+            raise RuntimeError("Packaged document conversion did not produce a PDF.")
+        for result in payload["results"]:
+            url = f"{base_url}/api/jobs/{payload['job_id']}/files/{result['file_id']}"
+            with urllib.request.urlopen(url, timeout=15) as response:  # nosec B310
+                if response.read() != archive.read(result["output_name"]):
+                    raise RuntimeError("Individual download did not match the batch archive.")
 
 
 def main() -> int:
@@ -58,6 +111,7 @@ def main() -> int:
         if match is None:
             raise RuntimeError("The app page did not contain a browser session token.")
         token = match.group(1).decode("ascii")
+        check_conversions(base_url)
         close_request = urllib.request.Request(
             f"{base_url}/api/browser/{token}/closed",
             method="POST",
@@ -76,7 +130,9 @@ def main() -> int:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 process.kill()
-    print("Executable startup and browser-close shutdown smoke test passed.")
+    print(
+        "Executable startup, conversions, downloads and browser-close shutdown smoke test passed."
+    )
     return 0
 
 

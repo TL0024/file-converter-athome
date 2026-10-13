@@ -4,6 +4,7 @@ const state = {
   activeCategory: "all",
   jobId: null,
   successfulResults: [],
+  busy: false,
 };
 
 const browserSession = document.querySelector('meta[name="fileconverterathome-session"]')?.content;
@@ -28,7 +29,8 @@ function closeBrowserSession() {
 
 heartbeatBrowserSession();
 window.setInterval(heartbeatBrowserSession, 5000);
-window.addEventListener("pagehide", closeBrowserSession);
+window.addEventListener("pagehide", (event) => { if (!event.persisted) closeBrowserSession(); });
+window.addEventListener("pageshow", heartbeatBrowserSession);
 
 const els = {
   input: document.querySelector("#file-input"),
@@ -97,12 +99,16 @@ function chooseDefaultTarget(format, targets) {
 }
 
 function addFiles(fileList) {
+  if (state.busy) return;
   if (!state.capabilities) {
     toast("The local converter is still starting. Try again in a moment.", "error");
     return;
   }
   let added = 0;
   let rejected = 0;
+  let empty = 0;
+  let oversized = 0;
+  let totalBytes = state.files.reduce((sum, item) => sum + item.file.size, 0);
   for (const file of fileList) {
     if (state.files.length >= state.capabilities.limits.max_files) {
       toast(`A batch can contain at most ${state.capabilities.limits.max_files} files.`, "error");
@@ -114,6 +120,13 @@ function addFiles(fileList) {
       rejected += 1;
       continue;
     }
+    if (!file.size) { empty += 1; continue; }
+    // Leave room for multipart headers within the server's request limit.
+    if (totalBytes + file.size > state.capabilities.limits.max_batch_bytes - 1024 * 1024) {
+      oversized += 1;
+      continue;
+    }
+    totalBytes += file.size;
     state.files.push({
       id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
       file,
@@ -125,7 +138,9 @@ function addFiles(fileList) {
   }
   els.input.value = "";
   renderQueue();
-  if (rejected) toast(`${rejected} unsupported ${rejected === 1 ? "file was" : "files were"} skipped.`, "error");
+  if (oversized) toast("Some files were skipped because the batch would exceed the 2 GB limit.", "error");
+  else if (empty) toast(`${empty} empty ${empty === 1 ? "file was" : "files were"} skipped.`, "error");
+  else if (rejected) toast(`${rejected} unsupported ${rejected === 1 ? "file was" : "files were"} skipped.`, "error");
   else if (added > 1) toast(`${added} files added to this batch.`);
 }
 
@@ -223,6 +238,7 @@ function syncBulkSelection() {
 }
 
 function applyBulkTarget() {
+  if (state.busy) return;
   const target = els.bulkTarget.value;
   if (!target) return;
   let updated = 0;
@@ -301,53 +317,114 @@ function setProgress(percent, label) {
   els.progressBar.style.width = `${percent}%`;
   els.progressPercent.textContent = `${Math.round(percent)}%`;
   els.progressLabel.textContent = label;
+  els.progressBar.parentElement.setAttribute("aria-valuenow", String(Math.round(percent)));
+}
+
+function setBusy(busy) {
+  state.busy = busy;
+  for (const element of [els.input, els.convert, els.clear, els.bulkTarget, els.newBatch, els.downloadSeparate,
+    ...els.queue.querySelectorAll("button, select")]) element.disabled = busy;
+  els.dropZone.setAttribute("aria-disabled", String(busy));
 }
 
 function convertBatch() {
-  if (!state.files.length || els.convert.disabled) return;
+  if (!state.files.length || state.busy) return;
   const formData = new FormData();
   for (const item of state.files) {
     formData.append("files", item.file, item.file.name);
     formData.append("targets", item.target);
   }
 
-  els.convert.disabled = true;
-  els.clear.disabled = true;
+  const requestId = crypto.randomUUID().replaceAll("-", "");
+  let finished = false;
+  let pollTimer;
+  let pollFailures = 0;
+  let connectionLost = false;
+  const finish = (payload, error) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(pollTimer);
+    setBusy(false);
+    els.progress.hidden = true;
+    if (error) {
+      els.results.hidden = !state.successfulResults.length;
+      toast(error, "error");
+      return;
+    }
+    const oldJob = state.jobId;
+    state.jobId = payload.job_id;
+    renderResults(payload);
+    if (oldJob && oldJob !== state.jobId) {
+      fetch(`/api/jobs/${oldJob}`, { method: "DELETE" }).catch(() => {});
+    }
+  };
+  const poll = async () => {
+    if (finished) return;
+    try {
+      const response = await fetch(`/api/jobs/${requestId}`, {
+        cache: "no-store", signal: AbortSignal.timeout(8000),
+      });
+      if (finished) return;
+      if (response.ok) {
+        const payload = await response.json();
+        if (finished) return;
+        pollFailures = 0;
+        if (payload.status === "complete") { finish(payload); return; }
+        setProgress(20 + (payload.completed / payload.total) * 80,
+          `Converting ${payload.completed + 1} of ${payload.total}: ${payload.current_file || "preparing"}`);
+      } else if (response.status !== 404 || connectionLost) {
+        throw new Error("Batch status unavailable");
+      }
+    } catch {
+      pollFailures += 1;
+      if (connectionLost && pollFailures >= 3) {
+        finish(null, "Could not reconnect to the local converter. Restart the app and try again.");
+        return;
+      }
+    }
+    if (!finished) pollTimer = setTimeout(poll, 750);
+  };
+
+  setBusy(true);
   els.results.hidden = true;
   setProgress(3, "Preparing batch…");
 
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/api/convert");
+  xhr.setRequestHeader("X-Conversion-ID", requestId);
   xhr.upload.addEventListener("progress", (event) => {
     if (event.lengthComputable) {
-      const value = Math.max(5, Math.min(82, (event.loaded / event.total) * 82));
+      if (finished) return;
+      const value = Math.max(3, (event.loaded / event.total) * 20);
       setProgress(value, "Sending files to the local converter…");
     }
   });
-  xhr.upload.addEventListener("load", () => setProgress(88, "Converting on this computer…"));
+  xhr.upload.addEventListener("load", () => {
+    if (finished) return;
+    setProgress(20, "Converting on this computer…");
+    poll();
+  });
   xhr.addEventListener("load", () => {
-    els.convert.disabled = false;
-    els.clear.disabled = false;
+    if (finished) return;
     let payload;
     try { payload = JSON.parse(xhr.responseText); }
     catch { payload = { error: "The local converter returned an unreadable response." }; }
     if (xhr.status < 200 || xhr.status >= 300) {
-      els.progress.hidden = true;
-      toast(payload.error || "The batch could not be converted.", "error");
+      finish(null, payload.error || "The batch could not be converted.");
       return;
     }
-    setProgress(100, "Batch complete");
-    state.jobId = payload.job_id;
-    setTimeout(() => {
-      els.progress.hidden = true;
-      renderResults(payload);
-    }, 350);
+    if (!Array.isArray(payload.results)) {
+      finish(null, "The local converter returned an unreadable response.");
+      return;
+    }
+    finish(payload);
   });
   xhr.addEventListener("error", () => {
-    els.convert.disabled = false;
-    els.clear.disabled = false;
-    els.progress.hidden = true;
-    toast("Could not reach the local converter. Restart run.bat and try again.", "error");
+    if (finished) return;
+    connectionLost = true;
+    setProgress(20, "Reconnecting to the local converter…");
+    clearTimeout(pollTimer);
+    poll();
   });
   xhr.send(formData);
 }
@@ -392,49 +469,68 @@ function renderResults(payload) {
 }
 
 async function saveSeparateFiles() {
-  if (state.successfulResults.length < 2 || els.downloadSeparate.disabled) return;
-  els.downloadSeparate.disabled = true;
+  if (state.successfulResults.length < 2 || state.busy) return;
+  setBusy(true);
+  const results = [...state.successfulResults];
+  const jobId = state.jobId;
   const originalLabel = "Save separate files";
   try {
     if ("showDirectoryPicker" in window) {
       const directory = await window.showDirectoryPicker({ id: "fileconverterathome-output", mode: "readwrite" });
+      const existingNames = new Set();
+      for await (const name of directory.keys()) existingNames.add(name.toLowerCase());
       let completed = 0;
-      for (const result of state.successfulResults) {
-        els.downloadSeparateLabel.textContent = `Saving ${completed + 1} of ${state.successfulResults.length}…`;
-        const response = await fetch(`/api/jobs/${state.jobId}/files/${result.file_id}`);
+      for (const result of results) {
+        els.downloadSeparateLabel.textContent = `Saving ${completed + 1} of ${results.length}…`;
+        const response = await fetch(`/api/jobs/${jobId}/files/${result.file_id}`);
         if (!response.ok) throw new Error(`Could not download ${result.output_name}`);
-        const fileHandle = await directory.getFileHandle(result.output_name, { create: true });
+        const filename = availableFilename(result.output_name, existingNames);
+        const fileHandle = await directory.getFileHandle(filename, { create: true });
         const writable = await fileHandle.createWritable();
-        await writable.write(await response.blob());
-        await writable.close();
+        if (response.body) await response.body.pipeTo(writable);
+        else {
+          try { await writable.write(await response.blob()); await writable.close(); }
+          catch (error) { await writable.abort(); throw error; }
+        }
         completed += 1;
       }
       toast(`${completed} separate files were saved to the selected folder.`);
       return;
     }
 
-    state.successfulResults.forEach((result, index) => {
-      window.setTimeout(() => {
+    for (const [index, result] of results.entries()) {
+        if (index) await new Promise((resolve) => setTimeout(resolve, 650));
         const link = document.createElement("a");
-        link.href = `/api/jobs/${state.jobId}/files/${result.file_id}`;
+        link.href = `/api/jobs/${jobId}/files/${result.file_id}`;
         link.download = result.output_name;
         link.hidden = true;
         document.body.append(link);
         link.click();
         link.remove();
-      }, index * 650);
-    });
+    }
     toast("Separate downloads started. Your browser may ask where to save each file or to allow multiple downloads.");
   } catch (error) {
     if (error?.name === "AbortError") toast("Folder selection was cancelled.");
     else toast(error?.message || "The separate files could not be saved.", "error");
   } finally {
-    els.downloadSeparate.disabled = false;
+    setBusy(false);
     els.downloadSeparateLabel.textContent = originalLabel;
   }
 }
 
+function availableFilename(name, existingNames) {
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const extension = dot > 0 ? name.slice(dot) : "";
+  let candidate = name;
+  let counter = 2;
+  while (existingNames.has(candidate.toLowerCase())) candidate = `${stem} (${counter++})${extension}`;
+  existingNames.add(candidate.toLowerCase());
+  return candidate;
+}
+
 async function resetBatch() {
+  if (state.busy) return;
   const oldJob = state.jobId;
   state.jobId = null;
   state.successfulResults = [];
@@ -449,9 +545,9 @@ async function resetBatch() {
   }
 }
 
-els.dropZone.addEventListener("click", () => els.input.click());
+els.dropZone.addEventListener("click", () => { if (!state.busy) els.input.click(); });
 els.dropZone.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" || event.key === " ") { event.preventDefault(); els.input.click(); }
+  if (!state.busy && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); els.input.click(); }
 });
 els.input.addEventListener("change", () => addFiles(els.input.files));
 for (const eventName of ["dragenter", "dragover"]) {
@@ -461,7 +557,7 @@ for (const eventName of ["dragleave", "drop"]) {
   els.dropZone.addEventListener(eventName, (event) => { event.preventDefault(); els.dropZone.classList.remove("dragging"); });
 }
 els.dropZone.addEventListener("drop", (event) => addFiles(event.dataTransfer.files));
-els.clear.addEventListener("click", () => { state.files = []; renderQueue(); });
+els.clear.addEventListener("click", resetBatch);
 els.bulkTarget.addEventListener("change", applyBulkTarget);
 els.convert.addEventListener("click", convertBatch);
 els.downloadSeparate.addEventListener("click", saveSeparateFiles);

@@ -32,11 +32,12 @@ The `Quality` workflow separates concerns so branch protection can identify the 
 | pip-audit | Published vulnerabilities in runtime dependencies |
 | pytest + coverage | Behavior and branch coverage, including lifecycle routes |
 | ESLint | Browser JavaScript correctness |
+| Node test runner | Batch locking, live progress, interrupted-response recovery, and safe folder names |
 | CodeQL | Extended security and quality queries for Python and JavaScript |
 | zizmor | GitHub Actions supply-chain and workflow security |
 | Dependency review | Pull-request pip and npm advisory audits without requiring GitHub Advanced Security |
 
-Tests run on Python 3.11, 3.12, and 3.13. The Windows job also builds the one-file executable and runs `scripts/smoke_executable.py`, which verifies startup, page rendering, the close endpoint, and a clean process exit.
+Tests run on Python 3.11, 3.12, and 3.13. Run `npm test` for the dependency-free frontend behavior suite. The Windows job also builds the one-file executable and runs `scripts/smoke_executable.py`, which verifies startup, page rendering, mixed document/audio conversion, downloads, the close endpoint, and a clean process exit.
 
 ## Building Windows releases
 
