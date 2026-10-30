@@ -25,4 +25,4 @@ jobs:
         with:
           advanced-security: false
           annotations: true
-          version: 1.27.0
+          version: 1.31.1
