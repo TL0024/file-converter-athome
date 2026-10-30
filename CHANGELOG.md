@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1 - 2026-10-31
+
+- Upgrade Pillow to 13.0 to satisfy the existing release dependency-security gate.
+
+- Verify the application and Windows executable on Python 3.14.
+- Add Python 3.14 to continuous tests and build Windows executables with it.
+- Run CodeQL only for pull requests targeting main; retain merge-time analysis.
+
 ## 1.2.0 - 2026-10-14
 
 - Added live per-file batch progress and result recovery when the upload response is interrupted.
