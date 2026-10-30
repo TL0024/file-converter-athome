@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 2, 0, 0),
-    prodvers=(1, 2, 0, 0),
+    filevers=(1, 2, 1, 0),
+    prodvers=(1, 2, 1, 0),
     mask=0x3F,
     flags=0x0,
     OS=0x40004,
@@ -16,12 +16,12 @@ VSVersionInfo(
         [
           StringStruct("CompanyName", "TL0024"),
           StringStruct("FileDescription", "FileconverterAthome private file converter"),
-          StringStruct("FileVersion", "1.2.0"),
+          StringStruct("FileVersion", "1.2.1"),
           StringStruct("InternalName", "FileconverterAthome"),
           StringStruct("LegalCopyright", "Copyright (c) 2026 TL0024"),
           StringStruct("OriginalFilename", "FileconverterAthome.exe"),
           StringStruct("ProductName", "FileconverterAthome"),
-          StringStruct("ProductVersion", "1.2.0"),
+          StringStruct("ProductVersion", "1.2.1"),
         ],
       )
     ]),

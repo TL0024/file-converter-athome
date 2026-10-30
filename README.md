@@ -15,7 +15,7 @@ The executable is not code-signed, so Windows SmartScreen may ask you to confirm
 
 ## Run from source
 
-Python 3.11 or newer is required.
+Python 3.11 or newer is required. Python 3.14 is supported and used for Windows release builds.
 
 ```powershell
 python -m pip install -r requirements.txt
